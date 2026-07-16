@@ -150,11 +150,8 @@
 
     <script>
         // CONFIGURATION PARAMETERS
-        const NETWORK = "mainnet-beta"; // Change to "devnet" when testing before your token launch
-        
-        // !!! IMPORTANT: Paste your actual created token mint string inside these quotes later !!!
+        const NETWORK = "mainnet-beta"; 
         const TARGET_TOKEN_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"; 
-        
         const RPC_URL = "https://solana.com";
         const connection = new solanaWeb3.Connection(RPC_URL, "confirmed");
         
@@ -168,52 +165,81 @@
         const burnAmountInput = document.getElementById("burnAmount");
         const burnCounter = document.getElementById("burnCounter");
 
-        // Fetch and show total burned supply right away on load
-        async function updateLiveBurnCounter() {
-            try {
-                if (!TARGET_TOKEN_MINT) return;
-                const mintPublicKey = new solanaWeb3.PublicKey(TARGET_TOKEN_MINT);
-                
-                // Fetch current supply statistics
-                const supplySupplyInfo = await connection.getTokenSupply(mintPublicKey);
-                
-                // !!! NOTE ON TRACKING: For custom tokens, subtract current supply from your total fixed initial creation supply:
-                // Example assuming 1 Billion fixed supply: 1000000000 - supplySupplyInfo.value.uiAmount
-                const totalBurnedSoFar = supplySupplyInfo.value.uiAmount; 
-                
-                burnCounter.innerText = Number(totalBurnedSoFar).toLocaleString(undefined, { minimumFractionDigits: 2 });
-            } catch (err) {
-                console.error("Counter sync error:", err);
-                burnCounter.innerText = "SYNC ERROR";
-            }
-        }
-        updateLiveBurnCounter();
-        setInterval(updateLiveBurnCounter, 30000); // Automatically update every 30 seconds
-
-        async function connectWallet() {
+        // 1. Check for Existing Trust Sessions on Page Load
+        async function checkIfWalletIsConnected() {
             try {
                 provider = window?.solana || window?.parent?.solana;
-                
-                if (!provider) {
-                    alert("Phantom Wallet extension context not detected.");
-                    return;
+                if (provider && provider.isPhantom) {
+                    // onlyConnect: true attempts to log in silently if already trusted
+                    const resp = await provider.connect({ onlyConnect: true });
+                    handleWalletConnected(resp.publicKey);
                 }
-                
-                const resp = await provider.connect();
-                walletAddress = resp.publicKey;
-                
-                matrixChamber.classList.add("active");
-                connectBtn.innerText = `ID: ${walletAddress.toString().substring(0, 4)}...${walletAddress.toString().slice(-4)}`;
-                statusDisplay.innerHTML = `CORE STATUS: ONLINE<br><span style="font-size:9px; color:#ffffff;">READY FOR DESTRUCTIVE PROTOCOL</span>`;
-                
-                burnBtn.disabled = false;
-                burnBtn.classList.add("primed");
             } catch (err) {
-                console.error(err);
-                statusDisplay.innerText = "ACCESS REJECTED";
+                // User hasn't trusted the site yet; fail silently and wait for click
+                console.log("No active auto-connection session found.");
+            }
+        }
+        window.addEventListener('load', checkIfWalletIsConnected);
+
+        // 2. State Management: Connect Flow
+        async function handleWalletAction() {
+            provider = window?.solana || window?.parent?.solana;
+            if (!provider) {
+                alert("Phantom Wallet extension context not detected.");
+                return;
+            }
+
+            if (walletAddress) {
+                // IF WALLET IS ALREADY CONNECTED: Trigger Disconnect Sequence
+                try {
+                    await provider.disconnect();
+                    handleWalletDisconnected();
+                } catch (err) {
+                    console.error("Disconnect failed:", err);
+                }
+            } else {
+                // IF WALLET IS DISCONNECTED: Trigger Connection Sequence
+                try {
+                    const resp = await provider.connect();
+                    handleWalletConnected(resp.publicKey);
+                } catch (err) {
+                    console.error(err);
+                    statusDisplay.innerText = "ACCESS REJECTED";
+                }
             }
         }
 
+        function handleWalletConnected(publicKey) {
+            walletAddress = publicKey;
+            matrixChamber.classList.add("active");
+            
+            // Transform button UI into a green active toggle state
+            connectBtn.innerText = `DISCONNECT: ${walletAddress.toString().substring(0, 4)}...${walletAddress.toString().slice(-4)}`;
+            connectBtn.style.background = "#01c853";
+            connectBtn.style.color = "#000000";
+            
+            statusDisplay.innerHTML = `CORE STATUS: ONLINE<br><span style="font-size:9px; color:#ffffff;">READY FOR DESTRUCTIVE PROTOCOL</span>`;
+            
+            burnBtn.disabled = false;
+            burnBtn.classList.add("primed");
+        }
+
+        function handleWalletDisconnected() {
+            walletAddress = null;
+            matrixChamber.classList.remove("active");
+            
+            // Revert button UI back to standard clean white state
+            connectBtn.innerText = "Connect Wallet";
+            connectBtn.style.background = "#ffffff";
+            connectBtn.style.color = "#000000";
+            
+            statusDisplay.innerHTML = `CORE STATUS: OFFLINE<br><span style="font-size: 9px; color: #888888; font-weight: normal;">INITIALIZE IDENTITY CONNECTION</span>`;
+            
+            burnBtn.disabled = true;
+            burnBtn.classList.remove("primed");
+        }
+
+        // 3. Execution Pipelines
         async function runBurnPipeline(amountDecimal) {
             statusDisplay.innerHTML = `BURNING PROTOCOL...<br><span style="font-size:9px; color:#ffffff;">COMMITTING LEDGER REDUCTION EXECUTABLE</span>`;
             try {
@@ -229,25 +255,15 @@
         async function executeStandardBurn(mintAddressStr, amountDecimal) {
             const userPublicKey = provider.publicKey;
             const mintPublicKey = new solanaWeb3.PublicKey(mintAddressStr);
-            
             const mintInfo = await connection.getParsedAccountInfo(mintPublicKey);
             if (!mintInfo.value) throw new Error("Registry asset missing.");
             
             const decimals = mintInfo.value.data.parsed.info.decimals;
             const rawAmount = BigInt(Math.floor(amountDecimal * Math.pow(10, decimals)));
             
-            const userTokenAccount = splToken.getAssociatedTokenAddressSync(
-                mintPublicKey, 
-                userPublicKey
-            );
+            const userTokenAccount = splToken.getAssociatedTokenAddressSync(mintPublicKey, userPublicKey);
             
-            const burnInstruction = splToken.createBurnInstruction(
-                userTokenAccount, 
-                mintPublicKey, 
-                userPublicKey, 
-                rawAmount
-            );
-            
+            const burnInstruction = splToken.createBurnInstruction(userTokenAccount, mintPublicKey, userPublicKey, rawAmount);
             const transaction = new solanaWeb3.Transaction().add(burnInstruction);
             transaction.feePayer = userPublicKey;
             
@@ -257,25 +273,19 @@
             const signedTx = await provider.signTransaction(transaction);
             const rawTransaction = signedTx.serialize();
             
-            const txId = await connection.sendRawTransaction(rawTransaction, { 
-                skipPreflight: false, 
-                preflightCommitment: "confirmed" 
-            });
-            
+            const txId = await connection.sendRawTransaction(rawTransaction, { skipPreflight: false, preflightCommitment: "confirmed" });
             await connection.confirmTransaction(txId, "confirmed");
             return txId;
         }
 
-        // System Interface Bindings
-        connectBtn.addEventListener("click", connectWallet);
+        // Event Listener Core Bindings
+        connectBtn.addEventListener("click", handleWalletAction);
         
         burnBtn.addEventListener("click", () => {
             const amount = parseFloat(burnAmountInput.value);
-            
             if (isNaN(amount) || amount <= 0) {
                 alert("Enter a non-zero mass payload.");
                 return;
             }
-            
             runBurnPipeline(amount);
         });
