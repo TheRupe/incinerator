@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Incinerator // Matrix Protocol</title>
+    
+    <!-- Core Solana Architecture Components -->
+    <script src="https://unpkg.com"></script>
+    <script src="https://unpkg.com"></script>
+    
+    <style>
+        /* Cyberpunk Functional Architecture */
+        * { box-sizing: border-box; font-family: 'Courier New', Courier, monospace; }
+        body { background-color: #000000; color: #ffffff; display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; }
+
+        /* Main Incinerator Core Module */
+        .incinerator-core {
+            width: 100%;
+            max-width: 440px;
+            background: #050505;
+            border: 4px solid #01c853;
+            border-radius: 12px;
+            padding: 30px;
+            position: relative;
+            box-shadow: 0 0 25px rgba(1, 200, 83, 0.15);
+        }
+
+        /* Top Grid Status HUD */
+        .hud-display {
+            background: #0a0a0a;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-left: 4px solid #01c853;
+            padding: 15px;
+            margin-bottom: 25px;
+            border-radius: 4px;
+        }
+        .hud-title { font-size: 14px; color: #888888; text-transform: uppercase; tracking-spacing: 0.1em; margin-bottom: 4px; }
+        .hud-value { font-size: 18px; color: #01c853; font-weight: bold; font-family: monospace; }
+
+        /* Central Chamber Core Matrix */
+        .matrix-chamber {
+            border: 1px dashed rgba(1, 200, 83, 0.3);
+            border-radius: 8px;
+            padding: 25px;
+            text-align: center;
+            margin-bottom: 25px;
+            position: relative;
+            background: radial-gradient(circle at center, rgba(1, 200, 83, 0.03) 0%, transparent 100%);
+            transition: all 0.4s ease;
+        }
+        .matrix-chamber.active {
+            border: 1px solid #01c853;
+            background: radial-gradient(circle at center, rgba(1, 200, 83, 0.08) 0%, transparent 100%);
+            box-shadow: inset 0 0 20px rgba(1, 200, 83, 0.1);
+        }
+
+        .status-terminal { font-size: 11px; text-transform: uppercase; color: #ffffff; letter-spacing: 0.1em; line-height: 1.6; }
+        .matrix-chamber.active .status-terminal { color: #01c853; text-shadow: 0 0 8px rgba(1, 200, 83, 0.4); }
+
+        /* Form Subsystems */
+        .bay-group { margin-bottom: 18px; }
+        .bay-title { display: block; font-size: 10px; text-transform: uppercase; color: #888888; margin-bottom: 6px; letter-spacing: 0.1em; }
+        
+        .bay-input {
+            width: 100%;
+            background: #000000;
+            border: 1px solid #ffffff;
+            color: #ffffff;
+            padding: 10px;
+            font-size: 12px;
+            border-radius: 4px;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+        .bay-input:focus { border-color: #01c853; box-shadow: 0 0 10px rgba(1, 200, 83, 0.2); }
+
+        /* System Access Triggers */
+        .btn-action {
+            width: 100%;
+            background: #ffffff;
+            color: #000000;
+            border: none;
+            padding: 12px;
+            font-weight: bold;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+        .btn-action:hover { background: #01c853; color: #ffffff; box-shadow: 0 0 15px rgba(1, 200, 83, 0.4); }
+        
+        .btn-burn {
+            width: 100%;
+            background: #000000;
+            color: #444444;
+            border: 1px solid #222222;
+            padding: 14px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            font-size: 11px;
+            border-radius: 4px;
+            cursor: not-allowed;
+            transition: all 0.3s ease;
+            margin-top: 10px;
+        }
+        .btn-burn.primed {
+            background: #000000;
+            color: #01c853;
+            border: 1px solid #01c853;
+            cursor: pointer;
+        }
+        .btn-burn.primed:hover { background: #01c853; color: #000000; box-shadow: 0 0 20px rgba(1, 200, 83, 0.3); }
+    </style>
+</head>
+<body>
+
+    <div class="incinerator-core">
+        
+        <!-- Live Burn Counter HUD -->
+        <div class="hud-display">
+            <div class="hud-title">Cumulative Mass Destroyed</div>
+            <div id="burnCounter" class="hud-value">0.00</div>
+        </div>
+
+        <!-- System Matrix State Screen -->
+        <div id="matrixChamber" class="matrix-chamber">
+            <div id="statusDisplay" class="status-terminal">
+                CORE STATUS: OFFLINE<br>
+                <span style="font-size: 9px; color: #888888; font-weight: normal;">INITIALIZE IDENTITY CONNECTION</span>
+            </div>
+        </div>
+
+        <!-- Control Inputs -->
+        <div class="bay-group">
+            <button id="connectBtn" class="btn-action">Connect Wallet</button>
+        </div>
+
+        <div class="bay-group" style="margin-top: 25px;">
+            <label class="bay-title">Asset Mass Allocation (Amount)</label>
+            <input id="burnAmount" type="number" min="0" step="any" placeholder="0.00" class="bay-input">
+            
+            <button id="burnBtn" disabled class="btn-burn">Engage Burn Sequence</button>
+        </div>
+
+    </div>
+
+    <script>
+        // CONFIGURATION PARAMETERS
+        const NETWORK = "mainnet-beta"; // Change to "devnet" when testing before your token launch
+        
+        // !!! IMPORTANT: Paste your actual created token mint string inside these quotes later !!!
+        const TARGET_TOKEN_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"; 
+        
+        const RPC_URL = "https://solana.com";
+        const connection = new solanaWeb3.Connection(RPC_URL, "confirmed");
+        
+        let walletAddress = null;
+        let provider = null;
+
+        const connectBtn = document.getElementById("connectBtn");
+        const burnBtn = document.getElementById("burnBtn");
+        const statusDisplay = document.getElementById("statusDisplay");
+        const matrixChamber = document.getElementById("matrixChamber");
+        const burnAmountInput = document.getElementById("burnAmount");
+        const burnCounter = document.getElementById("burnCounter");
+
+        // Fetch and show total burned supply right away on load
+        async function updateLiveBurnCounter() {
+            try {
+                if (!TARGET_TOKEN_MINT) return;
+                const mintPublicKey = new solanaWeb3.PublicKey(TARGET_TOKEN_MINT);
+                
+                // Fetch current supply statistics
+                const supplySupplyInfo = await connection.getTokenSupply(mintPublicKey);
+                
+                // !!! NOTE ON TRACKING: For custom tokens, subtract current supply from your total fixed initial creation supply:
+                // Example assuming 1 Billion fixed supply: 1000000000 - supplySupplyInfo.value.uiAmount
+                const totalBurnedSoFar = supplySupplyInfo.value.uiAmount; 
+                
+                burnCounter.innerText = Number(totalBurnedSoFar).toLocaleString(undefined, { minimumFractionDigits: 2 });
+            } catch (err) {
+                console.error("Counter sync error:", err);
+                burnCounter.innerText = "SYNC ERROR";
+            }
+        }
+        updateLiveBurnCounter();
+        setInterval(updateLiveBurnCounter, 30000); // Automatically update every 30 seconds
+
+        async function connectWallet() {
+            try {
+                provider = window?.solana || window?.parent?.solana;
+                
+                if (!provider) {
+                    alert("Phantom Wallet extension context not detected.");
+                    return;
+                }
+                
+                const resp = await provider.connect();
+                walletAddress = resp.publicKey;
+                
+                matrixChamber.classList.add("active");
+                connectBtn.innerText = `ID: ${walletAddress.toString().substring(0, 4)}...${walletAddress.toString().slice(-4)}`;
+                statusDisplay.innerHTML = `CORE STATUS: ONLINE<br><span style="font-size:9px; color:#ffffff;">READY FOR DESTRUCTIVE PROTOCOL</span>`;
+                
+                burnBtn.disabled = false;
+                burnBtn.classList.add("primed");
+            } catch (err) {
+                console.error(err);
+                statusDisplay.innerText = "ACCESS REJECTED";
+            }
+        }
+
+        async function runBurnPipeline(amountDecimal) {
+            statusDisplay.innerHTML = `BURNING PROTOCOL...<br><span style="font-size:9px; color:#ffffff;">COMMITTING LEDGER REDUCTION EXECUTABLE</span>`;
+            try {
+                const transactionSignature = await executeStandardBurn(TARGET_TOKEN_MINT, amountDecimal);
+                statusDisplay.innerHTML = `PROCESSED SUCCESS<br><a href="https://solana.com{transactionSignature}?cluster=${NETWORK}" target="_blank" style="color: #01c853; text-decoration: underline; font-size: 9px; display: block; margin-top: 5px;">VERIFY TRANSACTION RECEIPT</a>`;
+                updateLiveBurnCounter();
+            } catch (error) {
+                console.error(error);
+                statusDisplay.innerHTML = `ERROR CRITICAL<br><span style="font-size:8px; color:#ff3333;">${error.message.substring(0,30)}</span>`;
+            }
+        }
+
+        async function executeStandardBurn(mintAddressStr, amountDecimal) {
+            const userPublicKey = provider.publicKey;
+            const mintPublicKey = new solanaWeb3.PublicKey(mintAddressStr);
+            
+            const mintInfo = await connection.getParsedAccountInfo(mintPublicKey);
+            if (!mintInfo.value) throw new Error("Registry asset missing.");
+            
+            const decimals = mintInfo.value.data.parsed.info.decimals;
+            const rawAmount = BigInt(Math.floor(amountDecimal * Math.pow(10, decimals)));
+            
+            const userTokenAccount = splToken.getAssociatedTokenAddressSync(
+                mintPublicKey, 
+                userPublicKey
+            );
+            
+            const burnInstruction = splToken.createBurnInstruction(
+                userTokenAccount, 
+                mintPublicKey, 
+                userPublicKey, 
+                rawAmount
+            );
+            
+            const transaction = new solanaWeb3.Transaction().add(burnInstruction);
+            transaction.feePayer = userPublicKey;
+            
+            const { blockhash } = await connection.getLatestBlockhash();
+            transaction.recentBlockhash = blockhash;
+            
+            const signedTx = await provider.signTransaction(transaction);
+            const rawTransaction = signedTx.serialize();
+            
+            const txId = await connection.sendRawTransaction(rawTransaction, { 
+                skipPreflight: false, 
+                preflightCommitment: "confirmed" 
+            });
+            
+            await connection.confirmTransaction(txId, "confirmed");
+            return txId;
+        }
+
+        // System Interface Bindings
+        connectBtn.addEventListener("click", connectWallet);
+        
+        burnBtn.addEventListener("click", () => {
+            const amount = parseFloat(burnAmountInput.value);
+            
+            if (isNaN(amount) || amount <= 0) {
+                alert("Enter a non-zero mass payload.");
+                return;
+            }
+            
+            runBurnPipeline(amount);
+        });
